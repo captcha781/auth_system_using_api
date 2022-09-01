@@ -597,6 +597,28 @@ exports.forgot_reset = (req, res) => {
       .then(updated_password => {
         User.updateOne({email: response_geturl.email}, {password: updated_password})
         .then(update_response => {
+
+
+
+          const mailObj = {
+            from: process.env.NODEMAILER_USER,
+            recipients: [response_geturl.email],
+            subject: "Your Password has been successfully updated!!!",
+            message: `
+            Your Password has been successfully updated on ${date_now.getHours()}:${date_now.getMinutes()}:${date_now.getSeconds} UTC.
+            from IP ${req.ip}.
+            `,
+          };
+
+          // sendEmail(mailObj).then((mailres) => {
+          //   console.log(mailres);
+          //   res.json({
+          //     message: "Your Password Reset Link is sent to your registered email",
+          //     redirection: null,
+          //   });
+          //   return;
+          // });
+
           res.json({message: "Password updated successfully...", redirection: "/signin"})
           return
         })
