@@ -14,6 +14,14 @@ router.post("/verification/:requrl", globalController.verifyController)
 
 router.get("/reverification", globalController.reVerify)
 
-router.post("/signout", globalController.signout)
+router.post("/subscription", auth, globalController.subscriptionController)
+
+router.post("/signout", auth,globalController.signout)
+
+router.post("/forgot-password", globalController.getForgotPassword)
+
+router.post("/forgot-reset/:forgotURL", globalController.forgot_reset)
+
+router.post("/reset-password", auth, globalController.reset_password)
 
 module.exports = router

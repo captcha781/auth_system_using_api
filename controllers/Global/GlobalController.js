@@ -3,7 +3,9 @@ const jwt = require("jsonwebtoken");
 const User = require("../../models/User");
 const bcrypt = require("bcryptjs");
 const Verifications = require("../../models/Verifications");
-const nodemailer = require("nodemailer")
+const nodemailer = require("nodemailer");
+const Subscription = require("../../models/Subscription");
+const Forgot = require("../../models/ForgetPassword")
 
 function makeUrl(length) {
   var result = "";
@@ -34,16 +36,20 @@ const sendEmail = async (mailObj) => {
       },
     });
 
-    // send mail with defined transport object
-    let mailStatus = await transporter.sendMail({
-      from: from, // sender address
-      to: recipients, // list of recipients
-      subject: subject, // Subject line
-      text: message, // plain text
-    });
+    let mailStatus = transporter.sendMail({
+      from: from,
+      to: recipients,
+      subject: subject,
+      text: message,
+    })
+      .then(response => {
+        console.log(`Message sent: ${response.messageId}`);
+        return `Message sent: ${response.messageId}`;
+      })
+      .catch(err => console.log(err))
 
-    console.log(`Message sent: ${mailStatus.messageId}`);
-    return `Message sent: ${mailStatus.messageId}`;
+    // console.log(`Message sent: ${mailStatus.messageId}`);
+
   } catch (error) {
     console.error(error);
     throw new Error(
@@ -55,6 +61,7 @@ const sendEmail = async (mailObj) => {
 // To get Status of Authentication
 exports.getAuthStatus = (req, res) => {
   if (req.session.user) {
+    req.session.user.password = ""
     res.json({ auth: true, user: req.session.user, redirection: null });
     return;
   }
@@ -92,6 +99,7 @@ exports.postSignUp = (req, res) => {
         req.body.lastname &&
         req.body.dateOfBirth &&
         req.body.address &&
+        req.body.role &&
         /^(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{7,15}$/.test(
           req.body.password
         ) &&
@@ -107,7 +115,7 @@ exports.postSignUp = (req, res) => {
               lastname: req.body.lastname.trim(),
               username: req.body.username.toLowerCase().trim(),
               password: password,
-              role: "user",
+              role: req.body.role.trim().toLowerCase(),
               subscribed: false,
               dateOfBirth: req.body.dateOfBirth,
               email: req.body.email.trim().toLowerCase(),
@@ -124,12 +132,13 @@ exports.postSignUp = (req, res) => {
                   url: verifyURL,
                   validity: Date.now() + 5 * 60 * 1000,
                 }).then((verifyResponse) => {
+                  creationResponse.password = ""
                   req.session.user = creationResponse;
                   const token = jwt.sign(
                     { id: creationResponse._id },
                     process.env.JWT_SECRET
                   );
-                  
+
                   const mailObj = {
                     from: process.env.NODEMAILER_USER,
                     recipients: [creationResponse.email],
@@ -141,20 +150,60 @@ exports.postSignUp = (req, res) => {
                       http://localhost:3001/verification/${verifyResponse.url}
                     `,
                   };
-                  
-                  sendEmail(mailObj).then((mailres) => {
-                    console.log(mailres);
-                    res.json({
-                      creation: true,
-                      auth: true,
-                      message:
-                        "Yayy..., Your Account has been created Successfully",
-                      redirection: null,
-                      user: creationResponse,
-                      token,
-                    });
-                    return;
+
+
+                  // ========================================================================
+                  //                              FOR DEVELOPMENT PURPOSES ONLY
+                  //   res.json({
+                  //     creation: true,
+                  //     auth: true,
+                  //     message:
+                  //       "Yayy..., Your Account has been created Successfully",
+                  //     redirection: null,
+                  //     user: creationResponse,
+                  //     token,
+                  //     dev_verify: verifyResponse.url
+                  //   });
+
+                  //   User.deleteOne({email:creationResponse.email})
+                  //   .then(res => {
+                  //     console.log("deleted successfully")
+                  //     return
+                  //   })
+                  //   .catch(err => {
+                  //     console.log(err)
+                  //     res.json({
+                  //   creation: false,
+                  //   message: "Some error occured please try again layer inner",
+                  // });
+                  // return;
+                  //   })
+                  // =======================================================================
+                  // sendEmail(mailObj).then((mailres) => {
+                  //   console.log(mailres);
+                  //   res.json({
+                  //     creation: true,
+                  //     auth: true,
+                  //     message:
+                  //       "Yayy..., Your Account has been created Successfully",
+                  //     redirection: null,
+                  //     user: creationResponse,
+                  //     token,
+                  //   });
+                  //   return;
+                  // });
+
+                  res.json({
+                    creation: true,
+                    auth: true,
+                    message:
+                      "Yayy..., Your Account has been created Successfully",
+                    redirection: null,
+                    user: creationResponse,
+                    token,
+                    dev_verify: verifyResponse.url
                   });
+                  return;
 
                 });
               })
@@ -221,6 +270,7 @@ exports.postLogin = (req, res) => {
             return;
           }
           const token = jwt.sign({ id: response._id }, process.env.JWT_SECRET);
+          response.password = ""
           req.session.user = response;
 
           if (!response.verified) {
@@ -241,18 +291,28 @@ exports.postLogin = (req, res) => {
                     http://localhost:3001/verification/${verifyResponse.url}
                   `,
                 };
-                
-                sendEmail(mailObj).then((mailres) => {
-                  console.log(mailres);
-                  res.json({
-                    auth: true,
-                    message: "Yayy..., Logged in Successfully",
-                    redirection: null,
-                    user: response,
-                    token,
-                  });
-                  return;
+
+                // sendEmail(mailObj).then((mailres) => {
+                //   console.log(mailres);
+                //   res.json({
+                //     auth: true,
+                //     message: "Yayy..., Logged in Successfully",
+                //     redirection: null,
+                //     user: response,
+                //     token,
+                //   });
+                //   return;
+                // });
+                console.log("verifyer");
+                res.json({
+                  auth: true,
+                  message: "Yayy..., Logged in Successfully",
+                  redirection: null,
+                  user: response,
+                  token,
+                  dev_verify: verifyResponse.url
                 });
+                return;
 
               })
               .catch((err) => {
@@ -268,6 +328,36 @@ exports.postLogin = (req, res) => {
             });
             return;
           } else {
+
+            let date_now = new Date()
+            const mailObj = {
+              from: process.env.NODEMAILER_USER,
+              recipients: [response.email],
+              subject: "Information Mail",
+              message: `
+              Your Account was logged into device on ${date_now.getHours()}:${date_now.getMinutes()}:${date_now.getSeconds} UTC
+              `,
+            };
+
+            // sendEmail(mailObj)
+            // .then(response_on_mailing => {
+            //   res.json({
+            //     auth: true,
+            //     message: "Yayy..., Logged in Successfully",
+            //     redirection: "/dashboard",
+            //     user: response,
+            //     token,
+            //   });
+            //   return;
+            // })
+            // .catch(err => {
+            //   console.log(err);
+            //   res.json({
+            //     auth: false,
+            //     message: "Oh no, Some Error occured please try again.",
+            //   });
+            //   return;
+            // })
             res.json({
               auth: true,
               message: "Yayy..., Logged in Successfully",
@@ -276,6 +366,7 @@ exports.postLogin = (req, res) => {
               token,
             });
             return;
+
           }
         })
         .catch((err) => {
@@ -301,7 +392,7 @@ exports.verifyController = (req, res) => {
 
   Verifications.findOne({ url: url })
     .then((response) => {
-      
+
 
       if (response == null) {
         res.json({
@@ -335,6 +426,7 @@ exports.verifyController = (req, res) => {
             console.log(updateResponse);
             Verifications.deleteOne({ username: response.username }).then(
               (deleteResponse) => {
+                req.session.user.verified = true
                 res.json({
                   message: "Verified Successfully",
                   redirection: "/subscription",
@@ -384,17 +476,24 @@ exports.reVerify = (req, res) => {
             http://localhost:3001/verification/${verifyResponse.url}
           `,
         };
-        
-        sendEmail(mailObj).then((mailres) => {
-          console.log(mailres);
-          res.json({
-            message: "Your New Verification URL is sent to your registered email",
-            redirection: null,
-          });
-          return;
-        });
 
-        
+        // sendEmail(mailObj).then((mailres) => {
+        //   console.log(mailres);
+        //   res.json({
+        //     message: "Your New Verification URL is sent to your registered email",
+        //     redirection: null,
+        //   });
+        //   return;
+        // });
+
+        res.json({
+          message: "Your New Verification URL is sent to your registered email",
+          redirection: null,
+          dev_verify: verifyResponse.url
+        });
+        return;
+
+
       })
       .catch((err) => {
         console.log(err);
@@ -402,10 +501,81 @@ exports.reVerify = (req, res) => {
   });
 };
 
-exports.signout = (req,res) => {
+exports.subscriptionController = (req, res) => {
+  // Payement Controller
+  let user = req.session.user
+  if (user) {
+    User.updateOne({ username: user.username }, { subscribed: true })
+      .then(updateResponse => {
+        // Subscription.create()
+      })
+  } else {
+    res.json({ auth: false, redirection: "/signin" })
+  }
+}
+
+exports.signout = (req, res) => {
   req.session.destroy((err) => {
-    console.log(err);
-    res.json({auth: false, redirection: "/signin"})
+    if (err) {
+      console.log(err);
+    }
+    res.json({ auth: false, redirection: "/signin" })
     return
   })
+}
+
+
+exports.getForgotPassword = (req, res) => {
+  const emailId = req.body.email.trim().toLowerCase()
+  User.findOne({ email: { $eq: emailId } })
+    .then(userFetchResponse => {
+      if (userFetchResponse === null) {
+        res.json({ message: "Oh Oh., No User found with this email", redirection: "/signup" })
+        return
+      }
+      const url = makeUrl(13)
+      const creationTime = Date.now()
+      const expiration = creationTime + (5 * 60 * 1000)
+
+      Forgot.create({ email: emailId, url: url, urlCreation: creationTime, urlExpiration: expiration })
+        .then(creationResponse => {
+
+          const mailObj = {
+            from: process.env.NODEMAILER_USER,
+            recipients: [creationResponse.email],
+            subject: "Password Reset Link",
+            message: `
+            Your password reset link is \n
+              http://localhost:3000/verification/${creationResponse.url}
+            `,
+          };
+
+          // sendEmail(mailObj).then((mailres) => {
+          //   console.log(mailres);
+          //   res.json({
+          //     message: "Your Password Reset Link is sent to your registered email",
+          //     redirection: null,
+          //   });
+          //   return;
+          // });
+          res.json({ url: creationResponse.url, redirection: null })
+          return
+        })
+        .catch(err => {
+          res.json({ message: err.message, redirection: null })
+        })
+
+    })
+    .catch(err => {
+      res.json({ message: "Ah Snap!!! Sorry some error occurred", redirection: null })
+    })
+
+}
+
+exports.forgot_reset = (req, res) => {
+
+}
+
+exports.reset_password = (req, res) => {
+
 }
