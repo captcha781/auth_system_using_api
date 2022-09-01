@@ -573,6 +573,47 @@ exports.getForgotPassword = (req, res) => {
 }
 
 exports.forgot_reset = (req, res) => {
+  const url = req.params.forgotURL
+  Forgot.findOne({url: url})
+  .then(response_geturl => {
+    const time = Date.now()
+    if(time > response_geturl.urlExpiration){
+      Forgot.deleteOne({url: url})
+      .then(delete_response_if_condition => {
+        res.json({message: "Your Password link is expired...", redirection: null})
+        return
+      })
+      .catch(err => {
+        res.json({message: "Some Error Occurred... Please try after sometime", redirection: null})
+        return
+      })
+    }
+
+    const password = req.body.password.trim()
+    const conf = req.body.confirmpassword.trim()
+
+    if(password === conf){
+      bcrypt.hash(password, parseInt(process.env.SALT_ROUNDS))
+      .then(updated_password => {
+        User.updateOne({email: response_geturl.email}, {password: updated_password})
+        .then(update_response => {
+          res.json({message: "Password updated successfully...", redirection: "/signin"})
+          return
+        })
+        .catch(err => {
+          res.json({message: err.message, redirection: "test 1"})
+          return
+        })
+      })
+    } else {
+      res.json({message:"Your Passwords didn't match...", redirection: null})
+    }
+
+
+  })
+  .catch(err => {
+    res.json({message: err.message, redirection: null})
+  })
 
 }
 
